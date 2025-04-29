@@ -40,7 +40,8 @@ int main(int argc, char *argv[])
     // PetscCheck(size == 2, comm, PETSC_ERR_WRONG_MPI_SIZE, "You have to use two processor cores to run this example ");
     // PetscCall(MatCreateMPIAIJWithArrays(comm, 2, 2, PETSC_DETERMINE, PETSC_DETERMINE, rank ? i2 : i1, rank ? j2 : j1, rank ? a2 : a1, &A));
     // PetscCall(MatCreateMPIAIJWithArrays(comm, 2, 1, PETSC_DETERMINE, PETSC_DETERMINE, rank ? pi2 : pi1, rank ? pj2 : pj1, rank ? pa2 : pa1, &P));
-
+    // Mat P_dense; // note: MatMatSolve使用mumps时右端项必须是denseMat
+    // MatConvert(P, MATDENSE, MAT_INITIAL_MATRIX, &P_dense);
 
     // construct data for one processor
     PetscInt    i1[] = {0, 3, 5, 6, 8};
@@ -54,25 +55,35 @@ int main(int argc, char *argv[])
     PetscCheck(size == 1, comm, PETSC_ERR_WRONG_MPI_SIZE, "You have to use one processor cores to run this example ");
     PetscCall(MatCreateSeqAIJWithArrays(comm, 4, 4, i1, j1, a1, &A));
     PetscCall(MatCreateSeqAIJWithArrays(comm, 4, 2, pi1, pj1, pa1, &P));
+    Mat P_dense; // note: MatMatSolve使用mumps时右端项必须是denseMat
+    MatConvert(P, MATDENSE, MAT_INITIAL_MATRIX, &P_dense);
+
+    // view input
     MatView(A, PETSC_VIEWER_STDOUT_WORLD);
-    MatView(P, PETSC_VIEWER_STDOUT_WORLD);
+    MatView(P_dense, PETSC_VIEWER_STDOUT_WORLD);
 
     // 求解
     Mat A_chol;
     Mat X; // ans
+    MatDuplicate(P_dense, MAT_DO_NOT_COPY_VALUES, &X); // note: MatMatSolve使用mumps时解必须显式指定为denseMat
     IS row, col;
     MatFactorInfo info;
     MatFactorInfoInitialize(&info);
     MatGetFactor(A, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &A_chol);
-    MatMumpsSetIcntl(A_chol, 7, 4); // 指定排序方法
-    // MatGetOrdering(A, MATORDERINGEXTERNAL, &row, &col);
+    MatMumpsSetIcntl(A_chol, 29, 2); // 指定排序方法
+    MatGetOrdering(A, MATORDERINGEXTERNAL, &row, &col);
     MatCholeskyFactorSymbolic(A_chol, A, row, &info);
     MatCholeskyFactorNumeric(A_chol, A, &info);
-    MatMatSolve(A_chol, P, X);
+    MatMatSolve(A_chol, P_dense, X);
+
+    // view ans
+    MatView(X, PETSC_VIEWER_STDOUT_WORLD);
+    printf("done\n");
 
     // deconstruct
     PetscCall(MatDestroy(&A));
     PetscCall(MatDestroy(&P));
+    PetscCall(MatDestroy(&P_dense));
     PetscCall(MatDestroy(&X));
     PetscCall(PetscFinalize());
   return 0;
