@@ -4,9 +4,9 @@
  * A =
 
    1   2   0   4
-   0   1   2   0
-   2   0   4   0
-   0   1   2   1
+   2   1   0   0
+   0   0   4   0
+   4   0   0   1
  *
  *
  * P =
@@ -28,9 +28,9 @@ int main(int argc, char *argv[])
     PetscCall(PetscInitialize(&argc, &argv, NULL, NULL));
 
     // // 构造数据 for two processor
-    // PetscInt    i1[] = {0, 3, 5}, i2[] = {0, 2, 5};
-    // PetscInt    j1[] = {0, 1, 3, 1, 2}, j2[] = {0, 2, 1, 2, 3};
-    // PetscScalar a1[] = {1, 2, 4, 1, 2}, a2[] = {2, 4, 1, 2, 1};
+    // PetscInt    i1[] = {0, 3, 5}, i2[] = {0, 1, 3};
+    // PetscInt    j1[] = {0, 1, 3, 0, 1}, j2[] = {2, 0, 3};
+    // PetscScalar a1[] = {1, 2, 4, 2, 1}, a2[] = {4, 4, 1};
     // PetscInt    pi1[] = {0, 1, 3}, pi2[] = {0, 1, 2};
     // PetscInt    pj1[] = {0, 0, 1}, pj2[] = {1, 0};
     // PetscScalar pa1[] = {1, 0.3, 0.5}, pa2[] = {0.8, 0.9};
@@ -43,9 +43,9 @@ int main(int argc, char *argv[])
 
 
     // construct data for one processor
-    PetscInt    i1[] = {0, 3, 5, 7, 10};
-    PetscInt    j1[] = {0, 1, 3, 1, 2, 0, 2, 1, 2, 3};
-    PetscScalar a1[] = {1, 2, 4, 1, 2, 2, 4, 1, 2, 1};
+    PetscInt    i1[] = {0, 3, 5, 6, 8};
+    PetscInt    j1[] = {0, 1, 3, 0, 1, 2, 0, 3};
+    PetscScalar a1[] = {1, 2, 4, 2, 1, 4, 4, 1};
     PetscInt    pi1[] = {0, 1, 3, 4, 5};
     PetscInt    pj1[] = {0, 0, 1, 1, 0};
     PetscScalar pa1[] = {1, 0.3, 0.5, 0.8, 0.9};
@@ -54,21 +54,21 @@ int main(int argc, char *argv[])
     PetscCheck(size == 1, comm, PETSC_ERR_WRONG_MPI_SIZE, "You have to use one processor cores to run this example ");
     PetscCall(MatCreateSeqAIJWithArrays(comm, 4, 4, i1, j1, a1, &A));
     PetscCall(MatCreateSeqAIJWithArrays(comm, 4, 2, pi1, pj1, pa1, &P));
-
     MatView(A, PETSC_VIEWER_STDOUT_WORLD);
     MatView(P, PETSC_VIEWER_STDOUT_WORLD);
+
     // 求解
-    Mat A_lu;
+    Mat A_chol;
     Mat X; // ans
     IS row, col;
     MatFactorInfo info;
     MatFactorInfoInitialize(&info);
-    MatGetFactor(A, MATSOLVERMUMPS, MAT_FACTOR_LU, &A_lu);
-    MatGetOrdering(A, MATORDERINGEXTERNAL, &row, &col);
-    MatLUFactorSymbolic(A_lu, A, row, col, &info);
-    MatLUFactorNumeric(A_lu, A, &info);
-    MatMatSolve(A_lu, P, X);
-
+    MatGetFactor(A, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &A_chol);
+    MatMumpsSetIcntl(A_chol, 7, 4); // 指定排序方法
+    // MatGetOrdering(A, MATORDERINGEXTERNAL, &row, &col);
+    MatCholeskyFactorSymbolic(A_chol, A, row, &info);
+    MatCholeskyFactorNumeric(A_chol, A, &info);
+    MatMatSolve(A_chol, P, X);
 
     // deconstruct
     PetscCall(MatDestroy(&A));
